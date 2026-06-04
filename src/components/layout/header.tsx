@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { LogOut, Menu, Store, LayoutDashboard, Users, Package, Settings, FileText, ShoppingCart, Receipt, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ export function Header() {
   const pathname = usePathname();
   const role = (session?.user as any)?.role || "CASHIER";
 
+  const [isOpen, setIsOpen] = useState(false);
+
   const filteredRoutes = routes.filter(route => {
     if (role === "CASHIER") return route.href === "/pdv";
     return true;
@@ -35,12 +38,10 @@ export function Header() {
       <div className="flex items-center">
         {/* Mobile Menu Trigger */}
         <div className="md:hidden mr-2">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="h-6 w-6" />
-              </Button>
-            </SheetTrigger>
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsOpen(true)}>
+              <Menu className="h-6 w-6" />
+            </Button>
             <SheetContent side="left" className="p-0 w-64">
               <SheetHeader className="p-0 text-left border-b">
                  <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
