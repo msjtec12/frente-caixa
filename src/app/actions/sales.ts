@@ -27,7 +27,12 @@ export async function checkoutSale(data: CheckoutData) {
 
   // Transaction to ensure atomicity
   const sale = await prisma.$transaction(async (tx) => {
-    // 1. Create Sale
+    // 1. Fetch products to get costPrice
+    const productIds = data.items.map(i => i.productId);
+    const products = await tx.product.findMany({ where: { id: { in: productIds } } });
+    const productMap = new Map(products.map(p => [p.id, p]));
+
+    // 2. Create Sale
     const newSale = await tx.sale.create({
       data: {
         userId: session.user.id,
@@ -42,6 +47,7 @@ export async function checkoutSale(data: CheckoutData) {
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
+            costPrice: productMap.get(item.productId)?.costPrice || 0,
             subtotal: item.quantity * item.unitPrice,
           }))
         },

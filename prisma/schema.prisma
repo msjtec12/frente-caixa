@@ -24,6 +24,7 @@ model User {
 
   sales         Sale[]
   cashRegisters CashRegister[]
+  expenses      Expense[]
   auditLogs     AuditLog[]
 }
 
@@ -113,6 +114,7 @@ model SaleItem {
   id         String   @id @default(cuid())
   quantity   Float
   unitPrice  Float
+  costPrice  Float    @default(0)
   subtotal   Float
 
   saleId     String
@@ -170,6 +172,20 @@ model InventoryMovement {
   product   Product  @relation(fields: [productId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  description String
+  amount      Float
+  category    String?  
+  date        DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model AuditLog {

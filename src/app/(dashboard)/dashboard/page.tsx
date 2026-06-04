@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, ShoppingCart, TrendingUp, AlertTriangle, PackageOpen } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, AlertTriangle, PackageOpen, Wallet, Percent, Receipt } from "lucide-react";
 import { DashboardCharts } from "./dashboard-charts";
 import { prisma } from "@/lib/prisma";
 
@@ -25,29 +25,32 @@ export default async function DashboardPage() {
 
   const vendasHoje = todaySales._count.id;
   const faturamentoHoje = todaySales._sum.total || 0;
-  const ticketMedioHoje = vendasHoje > 0 ? faturamentoHoje / vendasHoje : 0;
 
-  // 2. Vendas e Faturamento de ONTEM (Para percentual)
-  const yesterdaySales = await prisma.sale.aggregate({
-    _count: { id: true },
-    _sum: { total: true },
-    where: { createdAt: { gte: yesterdayStart, lte: yesterdayEnd }, status: "COMPLETED" }
+  // 2. CMV (Custo de Mercadorias Vendidas) HOJE
+  const todaySaleItems = await prisma.saleItem.findMany({
+    where: { sale: { createdAt: { gte: todayStart }, status: "COMPLETED" } }
   });
+  const custoHoje = todaySaleItems.reduce((acc, item) => acc + (item.costPrice * item.quantity), 0);
 
-  const vendasOntem = yesterdaySales._count.id;
-  const faturamentoOntem = yesterdaySales._sum.total || 0;
+  // 3. Despesas de HOJE
+  const todayExpenses = await prisma.expense.aggregate({
+    _sum: { amount: true },
+    where: { date: { gte: todayStart } }
+  });
+  const despesasHoje = todayExpenses._sum.amount || 0;
 
-  const percentualVendas = vendasOntem === 0 ? 100 : Math.round(((vendasHoje - vendasOntem) / vendasOntem) * 100);
-  const percentualFaturamento = faturamentoOntem === 0 ? 100 : Math.round(((faturamentoHoje - faturamentoOntem) / faturamentoOntem) * 100);
+  // 4. Lucro Líquido e Margem
+  const lucroLiquidoHoje = faturamentoHoje - custoHoje - despesasHoje;
+  const margemHoje = faturamentoHoje > 0 ? (lucroLiquidoHoje / faturamentoHoje) * 100 : 0;
 
-  // 3. Produtos com Estoque Baixo
+  // 5. Produtos com Estoque Baixo
   const estoqueBaixo = await prisma.product.count({
     where: {
       stock: { lte: prisma.product.fields.minStock }
     }
   });
 
-  // 4. Gráfico dos últimos 7 dias
+  // 6. Gráfico dos últimos 7 dias
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
@@ -77,7 +80,7 @@ export default async function DashboardPage() {
     total: chartDataMap[date]
   }));
 
-  // 5. Produtos Mais Vendidos
+  // 7. Produtos Mais Vendidos
   const topItemsRaw = await prisma.saleItem.groupBy({
     by: ['productId'],
     _sum: { quantity: true },
@@ -102,56 +105,57 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+      <h2 className="text-3xl font-bold tracking-tight">Dashboard Financeiro</h2>
       
+      {/* LINHA 1: Visão Financeira Principal */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="bg-white dark:bg-zinc-950 border-zinc-200">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vendas de Hoje</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Faturamento (Receita)</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vendasHoje}</div>
-            <p className={`text-xs ${percentualVendas >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {percentualVendas >= 0 ? '+' : ''}{percentualVendas}% em relação a ontem
-            </p>
+            <div className="text-2xl font-bold text-green-600">R$ {faturamentoHoje.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total vendido hoje ({vendasHoje} vendas)</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Faturamento Hoje</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Custos e Despesas</CardTitle>
+            <Receipt className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$ {faturamentoHoje.toFixed(2)}</div>
-            <p className={`text-xs ${percentualFaturamento >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {percentualFaturamento >= 0 ? '+' : ''}{percentualFaturamento}% em relação a ontem
+            <div className="text-2xl font-bold text-red-500">R$ {(custoHoje + despesasHoje).toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              CMV: R$ {custoHoje.toFixed(2)} | Desp: R$ {despesasHoje.toFixed(2)}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={lucroLiquidoHoje >= 0 ? "bg-green-50 dark:bg-green-950/20" : "bg-red-50 dark:bg-red-950/20"}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio (Hoje)</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Lucro Líquido</CardTitle>
+            <Wallet className={`h-4 w-4 ${lucroLiquidoHoje >= 0 ? "text-green-600" : "text-red-600"}`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$ {ticketMedioHoje.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Média por venda hoje</p>
+            <div className={`text-2xl font-black ${lucroLiquidoHoje >= 0 ? "text-green-600" : "text-red-600"}`}>
+              R$ {lucroLiquidoHoje.toFixed(2)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Receita - Custos - Despesas</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estoque Baixo</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${estoqueBaixo > 0 ? 'text-red-500' : 'text-green-500'}`} />
+            <CardTitle className="text-sm font-medium">Margem de Lucro</CardTitle>
+            <Percent className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${estoqueBaixo > 0 ? 'text-red-500' : 'text-green-500'}`}>
-              {estoqueBaixo}
+            <div className={`text-2xl font-bold ${margemHoje >= 0 ? "text-primary" : "text-red-500"}`}>
+              {margemHoje.toFixed(1)}%
             </div>
-            <p className="text-xs text-muted-foreground">Produtos precisando de atenção</p>
+            <p className="text-xs text-muted-foreground mt-1">% de lucro sobre as vendas</p>
           </CardContent>
         </Card>
       </div>
@@ -168,7 +172,14 @@ export default async function DashboardPage() {
         
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Produtos Mais Vendidos</CardTitle>
+            <CardTitle className="flex justify-between">
+              <span>Produtos Mais Vendidos</span>
+              {estoqueBaixo > 0 && (
+                <span className="text-xs font-normal flex items-center text-red-500 bg-red-50 dark:bg-red-950 px-2 py-1 rounded-full">
+                  <AlertTriangle className="h-3 w-3 mr-1" /> {estoqueBaixo} sem estoque
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {topProducts.length === 0 ? (

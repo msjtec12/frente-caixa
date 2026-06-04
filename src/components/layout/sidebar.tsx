@@ -11,6 +11,7 @@ const routes = [
   { label: "Produtos", icon: Package, href: "/products" },
   { label: "Categorias", icon: FileText, href: "/categories" },
   { label: "Clientes", icon: Users, href: "/customers" },
+  { label: "Despesas", icon: FileText, href: "/expenses" },
   { label: "Relatórios", icon: FileText, href: "/reports" },
   { label: "Configurações", icon: Settings, href: "/settings" },
 ];
