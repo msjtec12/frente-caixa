@@ -31,6 +31,7 @@ async function main() {
         email: 'admin@admin.com',
         password: hashedPassword,
         role: 'ADMIN',
+        companyId: company.id,
       },
     });
     console.log('Usuário admin criado (admin@admin.com / admin123).');
