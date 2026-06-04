@@ -11,12 +11,15 @@ export async function getProducts() {
 }
 
 export async function createProduct(data: any) {
-  const company = await prisma.company.findFirst();
-  if (!company) throw new Error("Empresa não encontrada");
-  
-  const product = await prisma.product.create({
-    data: { ...data, companyId: company.id }
-  });
+  // Converter strings vazias para nulo para não quebrar a restrição de "Unique"
+  const processedData = {
+    ...data,
+    internalCode: data.internalCode?.trim() === "" ? null : data.internalCode,
+    barcode: data.barcode?.trim() === "" ? null : data.barcode,
+    imageUrl: data.imageUrl?.trim() === "" ? null : data.imageUrl,
+  };
+
+  const product = await prisma.product.create({ data: processedData });
   revalidatePath("/products");
   return product;
 }
