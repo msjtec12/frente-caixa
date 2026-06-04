@@ -22,9 +22,31 @@ export async function checkoutSale(data: CheckoutData) {
   const total = subtotal - data.discount;
   
   const paymentTotal = data.payments.reduce((acc, p) => acc + p.amount, 0);
-  if (Math.abs(paymentTotal - total) > 0.01) {
-     throw new Error("Total de pagamentos não confere com o total da venda");
+  let change = paymentTotal - total;
+  
+  if (change < -0.01) {
+     throw new Error("Total pago é menor que o valor da venda");
   }
+
+  // Agrupa os pagamentos por método
+  const paymentsMap = new Map<string, number>();
+  for (const p of data.payments) {
+    paymentsMap.set(p.method, (paymentsMap.get(p.method) || 0) + p.amount);
+  }
+
+  // Se houver troco, desconta do Dinheiro
+  if (change > 0.01) {
+    const cashAmount = paymentsMap.get("DINHEIRO") || 0;
+    if (cashAmount >= change) {
+      paymentsMap.set("DINHEIRO", cashAmount - change);
+    } else {
+      throw new Error("O valor de troco excede o valor pago em Dinheiro");
+    }
+  }
+
+  const processedPayments = Array.from(paymentsMap.entries())
+    .filter(([_, amount]) => amount > 0)
+    .map(([method, amount]) => ({ method, amount }));
 
   // Transaction to ensure atomicity
   const sale = await prisma.$transaction(async (tx) => {
@@ -56,7 +78,7 @@ export async function checkoutSale(data: CheckoutData) {
           }))
         },
         payments: {
-          create: data.payments.map(payment => ({
+          create: processedPayments.map(payment => ({
             method: payment.method,
             amount: payment.amount,
           }))
