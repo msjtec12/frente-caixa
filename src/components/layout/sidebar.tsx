@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, LayoutDashboard, Users, Package, Settings, FileText, ShoppingCart, Receipt, Tags } from "lucide-react";
+import { Store, LayoutDashboard, Users, Package, Settings, FileText, ShoppingCart, Receipt, Tags, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const routes = [
@@ -14,6 +14,7 @@ const routes = [
   { label: "Clientes", icon: Users, href: "/customers" },
   { label: "Despesas", icon: FileText, href: "/expenses" },
   { label: "Relatórios", icon: FileText, href: "/reports" },
+  { label: "Auditoria", icon: ShieldAlert, href: "/reports/audit" },
   { label: "Configurações", icon: Settings, href: "/settings" },
 ];
 

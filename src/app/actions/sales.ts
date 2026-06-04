@@ -22,10 +22,13 @@ const checkoutSchema = z.object({
   discount: z.number().min(0).default(0)
 });
 
+import { logAuditAction } from "@/lib/audit";
+
 export async function checkoutSale(data: unknown) {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
-  if (!companyId || !session?.user?.id) throw new Error("Não autenticado");
+  const userId = session?.user?.id;
+  if (!companyId || !userId) throw new Error("Não autenticado");
 
   const parsed = checkoutSchema.parse(data);
 
@@ -72,7 +75,7 @@ export async function checkoutSale(data: unknown) {
     const newSale = await tx.sale.create({
       data: {
         companyId,
-        userId: session.user.id,
+        userId: session.user!.id,
         cashRegisterId: parsed.cashRegisterId,
         customerId: parsed.customerId,
         subtotal,
@@ -117,9 +120,78 @@ export async function checkoutSale(data: unknown) {
       });
     }
 
+    await logAuditAction({
+      action: "CREATE_SALE",
+      entity: "Sale",
+      entityId: newSale.id,
+      details: { total, itemCount: parsed.items.length },
+      companyId,
+      userId,
+      tx
+    });
+
     return newSale;
   });
 
   revalidatePath("/pdv");
   return sale;
+}
+
+export async function cancelSale(saleId: string, reason: string) {
+  const session = await getServerSession(authOptions);
+  const companyId = (session?.user as any)?.companyId;
+  const userId = session?.user?.id;
+  
+  if (!companyId || !userId) throw new Error("Não autenticado");
+  if (!reason || reason.trim() === "") throw new Error("O motivo do cancelamento é obrigatório.");
+
+  const result = await prisma.$transaction(async (tx) => {
+    const sale = await tx.sale.findUnique({
+      where: { id: saleId, companyId },
+      include: { items: true }
+    });
+
+    if (!sale) throw new Error("Venda não encontrada");
+    if (sale.status === "CANCELED") throw new Error("Venda já está cancelada");
+
+    // 1. Marcar como CANCELED
+    const updatedSale = await tx.sale.update({
+      where: { id: saleId },
+      data: { status: "CANCELED" }
+    });
+
+    // 2. Estornar estoque
+    for (const item of sale.items) {
+      await tx.product.update({
+        where: { id: item.productId, companyId },
+        data: { stock: { increment: item.quantity } }
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          companyId,
+          productId: item.productId,
+          type: "IN",
+          quantity: item.quantity,
+          reason: `Cancelamento da Venda #${sale.id}`
+        }
+      });
+    }
+
+    // 3. Log de Auditoria
+    await logAuditAction({
+      action: "CANCEL_SALE",
+      entity: "Sale",
+      entityId: sale.id,
+      details: { reason, total: sale.total },
+      companyId,
+      userId,
+      tx
+    });
+
+    return updatedSale;
+  });
+
+  revalidatePath("/pdv");
+  return result;
 }

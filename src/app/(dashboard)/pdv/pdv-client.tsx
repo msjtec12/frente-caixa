@@ -12,8 +12,9 @@ import { openCashRegister, closeCashRegister } from "@/app/actions/cash-register
 import { checkoutSale } from "@/app/actions/sales";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/store/useCartStore";
-
-// Tipos mantidos para compatibilidade local se necessário
+import { dbLocal } from "@/lib/db-local";
+import { useLiveQuery } from "dexie-react-hooks";
+import { WifiOff, Wifi } from "lucide-react";
 
 export function PDVClient({ products, customers, cashRegister, categories }: { products: any[], customers: any[], cashRegister: any, categories: any[] }) {
   const router = useRouter();
@@ -28,7 +29,8 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
     isCheckoutOpen, setIsCheckoutOpen,
     payments, selectedMethod, setSelectedMethod,
     paymentAmount, setPaymentAmount,
-    addPayment, addQuickCash, removePayment, clearPayments
+    addPayment, addQuickCash, removePayment, clearPayments,
+    isOnline, setIsOnline, pendingSyncCount, setPendingSyncCount
   } = useCartStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -38,8 +40,66 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
   const [closingAmount, setClosingAmount] = useState<number>(0);
   const [isClosing, setIsClosing] = useState(false);
 
+  // Load local data and sync pending counts
+  const localProducts = useLiveQuery(() => dbLocal.products.toArray(), []) || products;
+  const localCategories = useLiveQuery(() => dbLocal.categories.toArray(), []) || categories;
+  useLiveQuery(async () => {
+    const count = await dbLocal.offline_sales.count();
+    setPendingSyncCount(count);
+  });
+
+  // Network listener & Initial Sync
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    if (typeof navigator !== 'undefined') setIsOnline(navigator.onLine);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Sync Master Data Down to Local DB
+  useEffect(() => {
+    if (isOnline && products.length > 0) {
+      dbLocal.products.bulkPut(products).catch(console.error);
+    }
+  }, [products, isOnline]);
+
+  useEffect(() => {
+    if (isOnline && categories.length > 0) {
+      dbLocal.categories.bulkPut(categories).catch(console.error);
+    }
+  }, [categories, isOnline]);
+
+  // Sync Offline Sales Up to Server
+  useEffect(() => {
+    if (isOnline && pendingSyncCount > 0) {
+      const syncSales = async () => {
+        const salesToSync = await dbLocal.offline_sales.toArray();
+        for (const sale of salesToSync) {
+          try {
+            await checkoutSale({
+              cashRegisterId: sale.cashRegisterId,
+              items: sale.items,
+              payments: sale.payments,
+              discount: sale.discount,
+            });
+            await dbLocal.offline_sales.delete(sale.id);
+            toast.success("Venda offline sincronizada com sucesso!");
+          } catch (error) {
+            console.error("Falha ao sincronizar venda", error);
+          }
+        }
+      };
+      syncSales();
+    }
+  }, [isOnline, pendingSyncCount]);
+
   const filteredProducts = useMemo(() => {
-    let result = products;
+    let result = localProducts;
     
     if (selectedCategory !== "all") {
       result = result.filter(p => p.categoryId === selectedCategory);
@@ -128,21 +188,37 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
 
     setIsProcessing(true);
     try {
-      await checkoutSale({
-        cashRegisterId: cashRegister?.id || "",
-        items: cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          unitPrice: item.product.sellPrice,
-        })),
-        payments: payments,
-        discount: discount,
-      });
+      const items = cart.map(item => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        unitPrice: item.product.sellPrice,
+      }));
 
-      toast.success("Venda finalizada com sucesso!");
+      if (isOnline) {
+        await checkoutSale({
+          cashRegisterId: cashRegister?.id || "",
+          items,
+          payments,
+          discount,
+        });
+        toast.success("Venda finalizada com sucesso!");
+      } else {
+        // Gravar offline no Dexie
+        await dbLocal.offline_sales.add({
+          id: crypto.randomUUID(),
+          cashRegisterId: cashRegister?.id || "",
+          createdAt: new Date().toISOString(),
+          items,
+          payments,
+          discount
+        });
+        toast.warning("Venda salva offline. Será sincronizada quando houver rede.");
+      }
+
       clearCart();
       setIsCheckoutOpen(false);
-      router.refresh();
+      
+      if (isOnline) router.refresh();
     } catch (error: any) {
       toast.error(error.message || "Erro ao finalizar venda");
     } finally {
@@ -196,6 +272,21 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
               autoFocus
             />
           </div>
+          
+          {!isOnline && (
+            <div className="flex items-center bg-red-100 text-red-700 px-4 rounded-lg font-medium shadow-sm border border-red-200 gap-2">
+              <WifiOff className="h-5 w-5" />
+              Offline {pendingSyncCount > 0 && `(${pendingSyncCount} pendentes)`}
+            </div>
+          )}
+          
+          {isOnline && pendingSyncCount > 0 && (
+            <div className="flex items-center bg-yellow-100 text-yellow-700 px-4 rounded-lg font-medium shadow-sm border border-yellow-200 gap-2 animate-pulse">
+              <Wifi className="h-5 w-5" />
+              Sincronizando {pendingSyncCount}...
+            </div>
+          )}
+
           <Button 
             variant="outline" 
             className="h-14 px-6 text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"

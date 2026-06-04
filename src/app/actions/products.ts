@@ -33,14 +33,16 @@ export async function getProducts() {
   });
 }
 
+import { logAuditAction } from "@/lib/audit";
+
 export async function createProduct(data: unknown) {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
-  if (!companyId) throw new Error("Não autenticado");
+  const userId = session?.user?.id;
+  if (!companyId || !userId) throw new Error("Não autenticado");
 
   const parsed = productSchema.parse(data);
 
-  // Converter strings vazias para nulo para não quebrar a restrição de "Unique"
   const processedData = {
     ...parsed,
     companyId,
@@ -50,6 +52,16 @@ export async function createProduct(data: unknown) {
   };
 
   const product = await prisma.product.create({ data: processedData });
+  
+  await logAuditAction({
+    action: "CREATE_PRODUCT",
+    entity: "Product",
+    entityId: product.id,
+    details: { name: product.name, sellPrice: product.sellPrice },
+    companyId,
+    userId,
+  });
+
   revalidatePath("/products");
   return product;
 }
@@ -57,7 +69,8 @@ export async function createProduct(data: unknown) {
 export async function updateProduct(id: string, data: unknown) {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
-  if (!companyId) throw new Error("Não autenticado");
+  const userId = session?.user?.id;
+  if (!companyId || !userId) throw new Error("Não autenticado");
 
   const parsed = productSchema.parse(data);
 
@@ -72,6 +85,16 @@ export async function updateProduct(id: string, data: unknown) {
     where: { id, companyId },
     data: processedData,
   });
+
+  await logAuditAction({
+    action: "UPDATE_PRODUCT",
+    entity: "Product",
+    entityId: product.id,
+    details: { name: product.name, newPrice: product.sellPrice, newStock: product.stock },
+    companyId,
+    userId,
+  });
+
   revalidatePath("/products");
   return product;
 }
@@ -79,11 +102,21 @@ export async function updateProduct(id: string, data: unknown) {
 export async function deleteProduct(id: string) {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
-  if (!companyId) throw new Error("Não autenticado");
+  const userId = session?.user?.id;
+  if (!companyId || !userId) throw new Error("Não autenticado");
 
   await prisma.product.update({ 
     where: { id, companyId },
     data: { isActive: false }
   });
+
+  await logAuditAction({
+    action: "DELETE_PRODUCT",
+    entity: "Product",
+    entityId: id,
+    companyId,
+    userId,
+  });
+
   revalidatePath("/products");
 }

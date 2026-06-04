@@ -12,24 +12,29 @@ interface Payment {
 
 interface CartState {
   searchTerm: string;
-  setSearchTerm: (term: string) => void;
   selectedCategory: string;
-  setSelectedCategory: (categoryId: string) => void;
-
   cart: CartItem[];
   discount: number;
+  isCheckoutOpen: boolean;
+  payments: Payment[];
+  selectedMethod: string;
+  paymentAmount: number;
+  isOnline: boolean;
+  pendingSyncCount: number;
+
+  setSearchTerm: (term: string) => void;
+  setSelectedCategory: (categoryId: string) => void;
+  setIsCheckoutOpen: (isOpen: boolean) => void;
   setDiscount: (discount: number) => void;
+  setIsOnline: (status: boolean) => void;
+  setPendingSyncCount: (count: number) => void;
+
   addToCart: (product: any, quantity?: number) => void;
   updateQuantity: (productId: string, delta: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
-
-  isCheckoutOpen: boolean;
-  setIsCheckoutOpen: (isOpen: boolean) => void;
-  payments: Payment[];
-  selectedMethod: string;
+  
   setSelectedMethod: (method: string) => void;
-  paymentAmount: number;
   setPaymentAmount: (amount: number) => void;
   addPayment: () => void;
   addQuickCash: (amount: number) => void;
@@ -38,6 +43,12 @@ interface CartState {
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
+  isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+  setIsOnline: (status) => set({ isOnline: status }),
+  
+  pendingSyncCount: 0,
+  setPendingSyncCount: (count) => set({ pendingSyncCount: count }),
+
   searchTerm: "",
   setSearchTerm: (term) => set({ searchTerm: term }),
   

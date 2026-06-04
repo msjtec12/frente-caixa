@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# pwa
+public/sw.js
+public/sw.js.map
+playwright-report/
+test-results/
