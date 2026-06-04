@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, QrCode, LockKeyhole, Image as ImageIcon, X } from "lucide-react";
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, QrCode, LockKeyhole, Image as ImageIcon, X, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { openCashRegister } from "@/app/actions/cash-register";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { openCashRegister, closeCashRegister } from "@/app/actions/cash-register";
 import { checkoutSale } from "@/app/actions/sales";
+import { useRouter } from "next/navigation";
 
 interface CartItem {
   product: any;
@@ -22,6 +23,7 @@ interface Payment {
 }
 
 export function PDVClient({ products, customers, cashRegister, categories }: { products: any[], customers: any[], cashRegister: any, categories: any[] }) {
+  const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(!!cashRegister);
   const [initialAmount, setInitialAmount] = useState(0);
 
@@ -37,6 +39,11 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
   const [selectedMethod, setSelectedMethod] = useState("DINHEIRO");
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Modal de Fechamento de Caixa
+  const [isCloseRegisterOpen, setIsCloseRegisterOpen] = useState(false);
+  const [closingAmount, setClosingAmount] = useState<number>(0);
+  const [isClosing, setIsClosing] = useState(false);
 
   const filteredProducts = useMemo(() => {
     let result = products;
@@ -74,8 +81,24 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
       await openCashRegister(initialAmount);
       setIsRegisterOpen(true);
       toast.success("Caixa aberto com sucesso!");
+      router.refresh();
     } catch (error: any) {
       toast.error(error.message || "Erro ao abrir caixa");
+    }
+  };
+
+  const handleCloseRegister = async () => {
+    setIsClosing(true);
+    try {
+      await closeCashRegister(cashRegister.id, closingAmount);
+      setIsRegisterOpen(false);
+      setIsCloseRegisterOpen(false);
+      toast.success("Caixa fechado com sucesso!");
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao fechar caixa");
+    } finally {
+      setIsClosing(false);
     }
   };
 
@@ -146,12 +169,18 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
       setPayments([]);
       setDiscount(0);
       setIsCheckoutOpen(false);
+      router.refresh();
     } catch (error: any) {
       toast.error(error.message || "Erro ao finalizar venda");
     } finally {
       setIsProcessing(false);
     }
   };
+
+  // Resumo para Fechamento
+  const registerSales = cashRegister?.sales || [];
+  const salesTotal = registerSales.reduce((acc: number, s: any) => acc + s.total, 0);
+  const startAmount = cashRegister?.initialAmount || 0;
 
   if (!isRegisterOpen) {
     return (
@@ -181,16 +210,28 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
       {/* Esquerda: Busca e Produtos (65%) */}
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
         
-        {/* Barra de Busca */}
-        <div className="relative shrink-0 shadow-sm rounded-lg">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
-          <Input 
-            className="pl-12 text-lg h-14 bg-white dark:bg-zinc-900 border-none shadow-sm" 
-            placeholder="Buscar produto ou código de barras..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            autoFocus
-          />
+        {/* Barra de Busca e Fechar Caixa */}
+        <div className="flex gap-2 shrink-0">
+          <div className="relative shadow-sm rounded-lg flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
+            <Input 
+              className="pl-12 text-lg h-14 bg-white dark:bg-zinc-900 border-none shadow-sm" 
+              placeholder="Buscar produto ou código de barras..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <Button 
+            variant="outline" 
+            className="h-14 px-6 text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
+            onClick={() => {
+              setClosingAmount(startAmount + salesTotal);
+              setIsCloseRegisterOpen(true);
+            }}
+          >
+            <LogOut className="mr-2 h-5 w-5" /> Fechar Caixa
+          </Button>
         </div>
 
         {/* Categorias Horizontal */}
@@ -454,6 +495,49 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
               onClick={handleCheckout}
             >
               {isProcessing ? "Processando..." : "Confirmar Venda"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Fechar Caixa */}
+      <Dialog open={isCloseRegisterOpen} onOpenChange={setIsCloseRegisterOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fechamento de Caixa</DialogTitle>
+            <DialogDescription>
+              Verifique os valores antes de fechar o caixa do dia.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex justify-between items-center p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border">
+              <span className="text-zinc-500">Fundo de Troco Inicial:</span>
+              <span className="font-bold text-lg">R$ {startAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border">
+              <span className="text-zinc-500">Vendas Registradas:</span>
+              <span className="font-bold text-lg text-primary">R$ {salesTotal.toFixed(2)}</span>
+            </div>
+            
+            <div className="pt-4 space-y-2">
+              <label className="text-sm font-medium">Valor Final em Gaveta (Calculado e Informado)</label>
+              <Input 
+                type="number" 
+                step="0.01" 
+                className="text-2xl font-bold h-14 text-center" 
+                value={closingAmount} 
+                onChange={(e) => setClosingAmount(parseFloat(e.target.value) || 0)} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCloseRegisterOpen(false)}>Cancelar</Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleCloseRegister}
+              disabled={isClosing}
+            >
+              {isClosing ? "Fechando..." : "Confirmar Fechamento"}
             </Button>
           </DialogFooter>
         </DialogContent>

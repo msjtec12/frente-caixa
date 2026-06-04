@@ -13,6 +13,13 @@ export async function getCurrentCashRegister() {
     where: {
       userId: session.user.id,
       status: "OPEN"
+    },
+    include: {
+      sales: {
+        include: {
+          payments: true
+        }
+      }
     }
   });
 }
