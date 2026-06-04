@@ -39,7 +39,7 @@ export function DashboardCharts({ data }: { data: ChartData[] }) {
           tickFormatter={(value) => `R$ ${value}`}
         />
         <Tooltip 
-          formatter={(value: number) => [`R$ ${value.toFixed(2)}`, "Total"]}
+          formatter={(value: any) => [`R$ ${Number(value).toFixed(2)}`, "Total"]}
           labelStyle={{ color: 'black' }}
         />
         <Area
