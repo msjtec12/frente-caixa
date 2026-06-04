@@ -1,13 +1,15 @@
 import { getProducts } from "@/app/actions/products";
 import { getCustomers } from "@/app/actions/customers";
 import { getCurrentCashRegister } from "@/app/actions/cash-register";
+import { getCategories } from "@/app/actions/categories";
 import { PDVClient } from "./pdv-client";
 
 export default async function PDVPage() {
-  const [products, customers, cashRegister] = await Promise.all([
+  const [products, customers, cashRegister, categories] = await Promise.all([
     getProducts(),
     getCustomers(),
     getCurrentCashRegister(),
+    getCategories(),
   ]);
 
   return (
@@ -16,6 +18,7 @@ export default async function PDVPage() {
         products={products} 
         customers={customers} 
         cashRegister={cashRegister} 
+        categories={categories}
       />
     </div>
   );
