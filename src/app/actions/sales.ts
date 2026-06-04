@@ -5,23 +5,34 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
-type CheckoutData = {
-  cashRegisterId: string;
-  customerId?: string;
-  items: { productId: string; quantity: number; unitPrice: number }[];
-  payments: { method: string; amount: number }[];
-  discount: number;
-};
+import { z } from "zod";
 
-export async function checkoutSale(data: CheckoutData) {
+const checkoutSchema = z.object({
+  cashRegisterId: z.string().min(1, "Caixa inválido"),
+  customerId: z.string().optional().nullable(),
+  items: z.array(z.object({
+    productId: z.string(),
+    quantity: z.number().min(0.001, "Quantidade inválida"),
+    unitPrice: z.number().min(0, "Preço inválido")
+  })).min(1, "A venda deve ter pelo menos um item"),
+  payments: z.array(z.object({
+    method: z.string(),
+    amount: z.number().min(0.01, "Valor inválido")
+  })).min(1, "A venda deve ter pelo menos um pagamento"),
+  discount: z.number().min(0).default(0)
+});
+
+export async function checkoutSale(data: unknown) {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
   if (!companyId || !session?.user?.id) throw new Error("Não autenticado");
 
-  const subtotal = data.items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
-  const total = subtotal - data.discount;
+  const parsed = checkoutSchema.parse(data);
+
+  const subtotal = parsed.items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
+  const total = subtotal - parsed.discount;
   
-  const paymentTotal = data.payments.reduce((acc, p) => acc + p.amount, 0);
+  const paymentTotal = parsed.payments.reduce((acc, p) => acc + p.amount, 0);
   let change = paymentTotal - total;
   
   if (change < -0.01) {
@@ -30,7 +41,7 @@ export async function checkoutSale(data: CheckoutData) {
 
   // Agrupa os pagamentos por método
   const paymentsMap = new Map<string, number>();
-  for (const p of data.payments) {
+  for (const p of parsed.payments) {
     paymentsMap.set(p.method, (paymentsMap.get(p.method) || 0) + p.amount);
   }
 
@@ -51,7 +62,7 @@ export async function checkoutSale(data: CheckoutData) {
   // Transaction to ensure atomicity
   const sale = await prisma.$transaction(async (tx) => {
     // 1. Fetch products to get costPrice
-    const productIds = data.items.map(i => i.productId);
+    const productIds = parsed.items.map(i => i.productId);
     const products = await tx.product.findMany({ where: { id: { in: productIds }, companyId } });
     const productMap = new Map(products.map(p => [p.id, p]));
 
@@ -62,14 +73,14 @@ export async function checkoutSale(data: CheckoutData) {
       data: {
         companyId,
         userId: session.user.id,
-        cashRegisterId: data.cashRegisterId,
-        customerId: data.customerId,
+        cashRegisterId: parsed.cashRegisterId,
+        customerId: parsed.customerId,
         subtotal,
-        discount: data.discount,
+        discount: parsed.discount,
         total,
         status: "COMPLETED",
         items: {
-          create: data.items.map(item => ({
+          create: parsed.items.map(item => ({
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -87,7 +98,7 @@ export async function checkoutSale(data: CheckoutData) {
     });
 
     // 3. Decrement stock and register movements
-    for (const item of data.items) {
+    for (const item of parsed.items) {
       await tx.product.update({
         where: { id: item.productId, companyId },
         data: {

@@ -11,33 +11,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { openCashRegister, closeCashRegister } from "@/app/actions/cash-register";
 import { checkoutSale } from "@/app/actions/sales";
 import { useRouter } from "next/navigation";
+import { useCartStore } from "@/store/useCartStore";
 
-interface CartItem {
-  product: any;
-  quantity: number;
-}
-
-interface Payment {
-  method: string;
-  amount: number;
-}
+// Tipos mantidos para compatibilidade local se necessário
 
 export function PDVClient({ products, customers, cashRegister, categories }: { products: any[], customers: any[], cashRegister: any, categories: any[] }) {
   const router = useRouter();
   const [isRegisterOpen, setIsRegisterOpen] = useState(!!cashRegister);
   const [initialAmount, setInitialAmount] = useState(0);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [discount, setDiscount] = useState(0);
-  
-  // Modal de Checkout
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [selectedMethod, setSelectedMethod] = useState("DINHEIRO");
-  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const {
+    searchTerm, setSearchTerm,
+    selectedCategory, setSelectedCategory,
+    cart, discount, setDiscount,
+    addToCart, updateQuantity, removeFromCart, clearCart,
+    isCheckoutOpen, setIsCheckoutOpen,
+    payments, selectedMethod, setSelectedMethod,
+    paymentAmount, setPaymentAmount,
+    addPayment, addQuickCash, removePayment, clearPayments
+  } = useCartStore();
+
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Modal de Fechamento de Caixa
@@ -76,6 +69,28 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
     }
   }, [remaining, isCheckoutOpen]);
 
+  // Atalhos de Teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        document.getElementById("pdv-search-input")?.focus();
+      }
+      if (e.key === "F4") {
+        e.preventDefault();
+        if (cart.length > 0 && !isCheckoutOpen) {
+          setIsCheckoutOpen(true);
+        }
+      }
+      if (e.key === "Escape") {
+        if (isCheckoutOpen) setIsCheckoutOpen(false);
+        if (isCloseRegisterOpen) setIsCloseRegisterOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [cart.length, isCheckoutOpen, isCloseRegisterOpen]);
+
   const handleOpenRegister = async () => {
     try {
       await openCashRegister(initialAmount);
@@ -102,61 +117,10 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
     }
   };
 
-  const addToCart = (product: any) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      const currentQty = existing ? existing.quantity : 0;
-      
-      if (currentQty + 1 > product.stock) {
-        toast.error(`Estoque insuficiente! Apenas ${product.stock} disponíveis.`);
-        return prev;
-      }
-
-      if (existing) {
-        return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-    setSearchTerm("");
-  };
-
-  const updateQuantity = (productId: string, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.product.id === productId) {
-        const newQtd = Math.max(1, item.quantity + delta);
-        if (newQtd > item.product.stock) {
-          toast.error(`Estoque insuficiente! Apenas ${item.product.stock} disponíveis.`);
-          return item;
-        }
-        return { ...item, quantity: newQtd };
-      }
-      return item;
-    }));
-  };
-
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.product.id !== productId));
-  };
-
-  const clearCart = () => {
+  const handleConfirmClearCart = () => {
     if(confirm("Deseja cancelar esta venda e limpar o carrinho?")) {
-      setCart([]);
-      setDiscount(0);
+      clearCart();
     }
-  };
-
-  const addPayment = () => {
-    if (paymentAmount <= 0) return;
-    setPayments(prev => [...prev, { method: selectedMethod, amount: paymentAmount }]);
-    setPaymentAmount(0);
-  };
-
-  const addQuickCash = (amount: number) => {
-    setPayments(prev => [...prev, { method: "DINHEIRO", amount }]);
-  };
-
-  const removePayment = (index: number) => {
-    setPayments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCheckout = async () => {
@@ -176,9 +140,7 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
       });
 
       toast.success("Venda finalizada com sucesso!");
-      setCart([]);
-      setPayments([]);
-      setDiscount(0);
+      clearCart();
       setIsCheckoutOpen(false);
       router.refresh();
     } catch (error: any) {
@@ -226,8 +188,9 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
           <div className="relative shadow-sm rounded-lg flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
             <Input 
+              id="pdv-search-input"
               className="pl-12 text-lg h-14 bg-white dark:bg-zinc-900 border-none shadow-sm" 
-              placeholder="Buscar produto ou código de barras..." 
+              placeholder="Buscar produto ou código de barras... (F2)" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               autoFocus
@@ -316,7 +279,7 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
           <CardTitle className="flex justify-between items-center text-lg">
             <div className="flex items-center"><ShoppingCart className="mr-2 h-5 w-5 text-primary" /> Pedido Atual</div>
             {cart.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+              <Button variant="ghost" size="sm" onClick={handleConfirmClearCart} className="text-red-500 hover:text-red-600 hover:bg-red-50">
                 Limpar
               </Button>
             )}
@@ -390,7 +353,7 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
             disabled={cart.length === 0}
             onClick={() => setIsCheckoutOpen(true)}
           >
-            Cobrar
+            Cobrar (F4)
           </Button>
         </div>
       </Card>

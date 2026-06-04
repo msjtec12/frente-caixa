@@ -40,6 +40,7 @@ model User {
   emailVerified DateTime?
   image         String?
   role          String    @default("CASHIER") // ADMIN, MANAGER, CASHIER
+  isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -56,6 +57,7 @@ model Category {
   id          String    @id @default(cuid())
   name        String
   description String?
+  isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -77,6 +79,7 @@ model Product {
   minStock           Float               @default(0)
   unit               String              @default("UN") // UN, KG, CX
   imageUrl           String?
+  isActive           Boolean             @default(true)
   
   companyId          String
   company            Company             @relation(fields: [companyId], references: [id])
@@ -102,6 +105,7 @@ model Customer {
   email       String?
   address     String?
   notes       String?
+  isActive    Boolean  @default(true)
   
   companyId   String
   company     Company  @relation(fields: [companyId], references: [id])
