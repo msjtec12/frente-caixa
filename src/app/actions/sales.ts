@@ -15,7 +15,8 @@ type CheckoutData = {
 
 export async function checkoutSale(data: CheckoutData) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autenticado");
+  const companyId = (session?.user as any)?.companyId;
+  if (!companyId || !session?.user?.id) throw new Error("Não autenticado");
 
   const subtotal = data.items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
   const total = subtotal - data.discount;
@@ -29,12 +30,15 @@ export async function checkoutSale(data: CheckoutData) {
   const sale = await prisma.$transaction(async (tx) => {
     // 1. Fetch products to get costPrice
     const productIds = data.items.map(i => i.productId);
-    const products = await tx.product.findMany({ where: { id: { in: productIds } } });
+    const products = await tx.product.findMany({ where: { id: { in: productIds }, companyId } });
     const productMap = new Map(products.map(p => [p.id, p]));
+
+    // Check stock if needed. Later we will implement stock block.
 
     // 2. Create Sale
     const newSale = await tx.sale.create({
       data: {
+        companyId,
         userId: session.user.id,
         cashRegisterId: data.cashRegisterId,
         customerId: data.customerId,
@@ -60,10 +64,10 @@ export async function checkoutSale(data: CheckoutData) {
       }
     });
 
-    // 2. Decrement stock and register movements
+    // 3. Decrement stock and register movements
     for (const item of data.items) {
       await tx.product.update({
-        where: { id: item.productId },
+        where: { id: item.productId, companyId },
         data: {
           stock: { decrement: item.quantity }
         }
@@ -71,6 +75,7 @@ export async function checkoutSale(data: CheckoutData) {
 
       await tx.inventoryMovement.create({
         data: {
+          companyId,
           productId: item.productId,
           type: "OUT",
           quantity: item.quantity,

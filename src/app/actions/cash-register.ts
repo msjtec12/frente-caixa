@@ -7,11 +7,15 @@ import { revalidatePath } from "next/cache";
 
 export async function getCurrentCashRegister() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return null;
+  const companyId = (session?.user as any)?.companyId;
+  const userId = session?.user?.id;
+  
+  if (!companyId || !userId) return null;
 
   return prisma.cashRegister.findFirst({
     where: {
-      userId: session.user.id,
+      companyId,
+      userId,
       status: "OPEN"
     },
     include: {
@@ -26,14 +30,18 @@ export async function getCurrentCashRegister() {
 
 export async function openCashRegister(initialAmount: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autenticado");
+  const companyId = (session?.user as any)?.companyId;
+  const userId = session?.user?.id;
+  
+  if (!companyId || !userId) throw new Error("Não autenticado");
 
   const exists = await getCurrentCashRegister();
   if (exists) throw new Error("Já existe um caixa aberto para este usuário.");
 
   const cashRegister = await prisma.cashRegister.create({
     data: {
-      userId: session.user.id,
+      companyId,
+      userId,
       initialAmount,
       status: "OPEN",
     }
@@ -44,10 +52,13 @@ export async function openCashRegister(initialAmount: number) {
 
 export async function closeCashRegister(id: string, finalAmount: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autenticado");
+  const companyId = (session?.user as any)?.companyId;
+  const userId = session?.user?.id;
+  
+  if (!companyId || !userId) throw new Error("Não autenticado");
 
   const cashRegister = await prisma.cashRegister.update({
-    where: { id, userId: session.user.id },
+    where: { id, companyId, userId },
     data: {
       status: "CLOSED",
       finalAmount,

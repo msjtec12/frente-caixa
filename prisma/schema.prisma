@@ -2,13 +2,34 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Para desenvolvimento estamos usando SQLite conforme combinado.
 // Para produção (Vercel Postgres, Supabase, etc), mude o provider para "postgresql"
-// e adicione a variável DATABASE_URL no seu painel de deploy ou .env.
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  cnpj      String?
+  phone     String?
+  logoUrl   String?
+  address   String?
+  theme     String   @default("light")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  categories         Category[]
+  products           Product[]
+  customers          Customer[]
+  sales              Sale[]
+  cashRegisters      CashRegister[]
+  cashMovements      CashMovement[]
+  expenses           Expense[]
+  inventoryMovements InventoryMovement[]
+  auditLogs          AuditLog[]
 }
 
 model User {
@@ -22,38 +43,33 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+
   sales         Sale[]
   cashRegisters CashRegister[]
   expenses      Expense[]
   auditLogs     AuditLog[]
 }
 
-model Company {
-  id        String   @id @default(cuid())
-  name      String
-  cnpj      String?
-  phone     String?
-  logoUrl   String?
-  address   String?
-  theme     String   @default("light")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Category {
   id          String    @id @default(cuid())
   name        String
   description String?
-  products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+
+  products    Product[]
 }
 
 model Product {
   id                 String              @id @default(cuid())
   name               String
-  internalCode       String?             @unique
-  barcode            String?             @unique
+  internalCode       String?
+  barcode            String?
   description        String?
   costPrice          Float               @default(0)
   sellPrice          Float               @default(0)
@@ -62,6 +78,9 @@ model Product {
   unit               String              @default("UN") // UN, KG, CX
   imageUrl           String?
   
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+
   categoryId         String?
   category           Category?           @relation(fields: [categoryId], references: [id])
   
@@ -70,21 +89,29 @@ model Product {
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  @@unique([companyId, internalCode])
+  @@unique([companyId, barcode])
 }
 
 model Customer {
   id          String   @id @default(cuid())
   name        String
-  document    String?  @unique // CPF or CNPJ
+  document    String?  // CPF or CNPJ
   phone       String?
   email       String?
   address     String?
   notes       String?
   
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
   sales       Sale[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, document])
 }
 
 model Sale {
@@ -93,6 +120,9 @@ model Sale {
   discount       Float        @default(0)
   subtotal       Float        @default(0)
   status         String       @default("COMPLETED") // COMPLETED, CANCELED
+
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
 
   userId         String
   user           User         @relation(fields: [userId], references: [id])
@@ -143,6 +173,9 @@ model CashRegister {
   openedAt      DateTime @default(now())
   closedAt      DateTime?
 
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+
   userId        String
   user          User     @relation(fields: [userId], references: [id])
 
@@ -156,6 +189,9 @@ model CashMovement {
   amount         Float
   reason         String?
 
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
+
   cashRegisterId String
   cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id])
 
@@ -167,6 +203,9 @@ model InventoryMovement {
   type      String   // IN, OUT, ADJUSTMENT
   quantity  Float
   reason    String?
+
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
 
   productId String
   product   Product  @relation(fields: [productId], references: [id])
@@ -181,6 +220,9 @@ model Expense {
   category    String?  
   date        DateTime @default(now())
 
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
   userId      String
   user        User     @relation(fields: [userId], references: [id])
 
@@ -194,6 +236,9 @@ model AuditLog {
   entity    String   // Product, Sale, User, etc.
   entityId  String?
   details   String?
+
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
 
   userId    String
   user      User     @relation(fields: [userId], references: [id])

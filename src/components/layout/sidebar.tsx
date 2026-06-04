@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, LayoutDashboard, Users, Package, Settings, FileText } from "lucide-react";
+import { Store, LayoutDashboard, Users, Package, Settings, FileText, ShoppingCart, Receipt, Tags } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const routes = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { label: "Frente de Caixa", icon: Store, href: "/pdv" },
+  { label: "Frente de Caixa", icon: ShoppingCart, href: "/pdv" },
+  { label: "Controle de Caixa", icon: Receipt, href: "/cash-register" },
   { label: "Produtos", icon: Package, href: "/products" },
-  { label: "Categorias", icon: FileText, href: "/categories" },
+  { label: "Categorias", icon: Tags, href: "/categories" },
   { label: "Clientes", icon: Users, href: "/customers" },
   { label: "Despesas", icon: FileText, href: "/expenses" },
   { label: "Relatórios", icon: FileText, href: "/reports" },

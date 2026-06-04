@@ -105,6 +105,13 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
   const addToCart = (product: any) => {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
+      const currentQty = existing ? existing.quantity : 0;
+      
+      if (currentQty + 1 > product.stock) {
+        toast.error(`Estoque insuficiente! Apenas ${product.stock} disponíveis.`);
+        return prev;
+      }
+
       if (existing) {
         return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
@@ -117,6 +124,10 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
     setCart(prev => prev.map(item => {
       if (item.product.id === productId) {
         const newQtd = Math.max(1, item.quantity + delta);
+        if (newQtd > item.product.stock) {
+          toast.error(`Estoque insuficiente! Apenas ${item.product.stock} disponíveis.`);
+          return item;
+        }
         return { ...item, quantity: newQtd };
       }
       return item;
@@ -278,9 +289,14 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
                 {/* Info do Produto */}
                 <div className="p-2 flex flex-col justify-between flex-1">
                   <span className="font-semibold text-sm leading-tight line-clamp-2">{p.name}</span>
-                  <span className="font-bold text-primary">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.sellPrice)}
-                  </span>
+                  <div className="flex justify-between items-end mt-1">
+                    <span className="font-bold text-primary">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.sellPrice)}
+                    </span>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${p.stock <= 0 ? 'bg-red-100 text-red-700' : 'bg-zinc-100 text-zinc-600'}`}>
+                      {p.stock <= 0 ? 'Esgotado' : `${p.stock} em est.`}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}

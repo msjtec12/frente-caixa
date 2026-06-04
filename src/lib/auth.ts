@@ -20,12 +20,21 @@ export const authOptions: NextAuthOptions = {
         const userCount = await prisma.user.count();
         if (userCount === 0 && credentials.email === "admin@konnexy.com.br" && credentials.password === "admin") {
           const hashedPassword = await bcrypt.hash("admin", 10);
+          
+          // Cria a empresa primeiro
+          const company = await prisma.company.create({
+            data: {
+              name: "Loja Teste Konnexy"
+            }
+          });
+
           await prisma.user.create({
             data: {
               name: "Administrador Konnexy",
               email: "admin@konnexy.com.br",
               password: hashedPassword,
-              role: "ADMIN"
+              role: "ADMIN",
+              companyId: company.id
             }
           });
         }
@@ -49,6 +58,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          companyId: user.companyId
         };
       }
     })
@@ -58,6 +68,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.companyId = (user as any).companyId;
       }
       return token;
     },
@@ -65,6 +76,7 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        (session.user as any).companyId = token.companyId as string;
       }
       return session;
     }

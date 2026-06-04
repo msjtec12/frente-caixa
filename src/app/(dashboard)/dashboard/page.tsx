@@ -2,10 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, ShoppingCart, TrendingUp, AlertTriangle, PackageOpen, Wallet, Percent, Receipt } from "lucide-react";
 import { DashboardCharts } from "./dashboard-charts";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  const companyId = (session?.user as any)?.companyId;
+  if (!companyId) return <div>Sem permissão</div>;
+
   // Configurando datas (Hoje e Ontem para comparação)
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -20,7 +26,7 @@ export default async function DashboardPage() {
   const todaySales = await prisma.sale.aggregate({
     _count: { id: true },
     _sum: { total: true },
-    where: { createdAt: { gte: todayStart }, status: "COMPLETED" }
+    where: { companyId, createdAt: { gte: todayStart }, status: "COMPLETED" }
   });
 
   const vendasHoje = todaySales._count.id;
@@ -28,14 +34,14 @@ export default async function DashboardPage() {
 
   // 2. CMV (Custo de Mercadorias Vendidas) HOJE
   const todaySaleItems = await prisma.saleItem.findMany({
-    where: { sale: { createdAt: { gte: todayStart }, status: "COMPLETED" } }
+    where: { sale: { companyId, createdAt: { gte: todayStart }, status: "COMPLETED" } }
   });
   const custoHoje = todaySaleItems.reduce((acc, item) => acc + (item.costPrice * item.quantity), 0);
 
   // 3. Despesas de HOJE
   const todayExpenses = await prisma.expense.aggregate({
     _sum: { amount: true },
-    where: { date: { gte: todayStart } }
+    where: { companyId, date: { gte: todayStart } }
   });
   const despesasHoje = todayExpenses._sum.amount || 0;
 
@@ -46,6 +52,7 @@ export default async function DashboardPage() {
   // 5. Produtos com Estoque Baixo
   const estoqueBaixo = await prisma.product.count({
     where: {
+      companyId,
       stock: { lte: prisma.product.fields.minStock }
     }
   });
@@ -55,7 +62,7 @@ export default async function DashboardPage() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
   const salesLast7Days = await prisma.sale.findMany({
-    where: { createdAt: { gte: sevenDaysAgo }, status: "COMPLETED" },
+    where: { companyId, createdAt: { gte: sevenDaysAgo }, status: "COMPLETED" },
     select: { total: true, createdAt: true }
   });
 
@@ -81,27 +88,28 @@ export default async function DashboardPage() {
   }));
 
   // 7. Produtos Mais Vendidos
-  const topItemsRaw = await prisma.saleItem.groupBy({
-    by: ['productId'],
-    _sum: { quantity: true },
-    orderBy: { _sum: { quantity: 'desc' } },
-    take: 5,
+  const recentSaleItems = await prisma.saleItem.findMany({
+    where: { sale: { companyId, status: "COMPLETED" } },
+    include: { product: { include: { category: true } } }
   });
 
-  const topProducts = await Promise.all(
-    topItemsRaw.map(async (item) => {
-      const p = await prisma.product.findUnique({
-        where: { id: item.productId },
-        include: { category: true }
-      });
-      return {
-        name: p?.name || 'Desconhecido',
-        category: p?.category?.name || 'Sem Categoria',
-        quantity: item._sum.quantity || 0,
-        imageUrl: p?.imageUrl
-      };
-    })
-  );
+  const productCountMap: Record<string, { quantity: number, product: any }> = {};
+  recentSaleItems.forEach(item => {
+    if (!productCountMap[item.productId]) {
+      productCountMap[item.productId] = { quantity: 0, product: item.product };
+    }
+    productCountMap[item.productId].quantity += item.quantity;
+  });
+
+  const topProducts = Object.values(productCountMap)
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 5)
+    .map(({ quantity, product }) => ({
+      name: product?.name || 'Desconhecido',
+      category: product?.category?.name || 'Sem Categoria',
+      quantity,
+      imageUrl: product?.imageUrl
+    }));
 
   return (
     <div className="space-y-6">
