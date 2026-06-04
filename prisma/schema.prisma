@@ -6,8 +6,9 @@ generator client {
 // Para produção (Vercel Postgres, Supabase, etc), mude o provider para "postgresql"
 // e adicione a variável DATABASE_URL no seu painel de deploy ou .env.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
