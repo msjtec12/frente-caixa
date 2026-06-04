@@ -177,8 +177,8 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-4 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Faturamento (Últimos 7 Dias)</CardTitle>
           </CardHeader>
@@ -187,7 +187,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
         
-        <Card className="col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex justify-between">
               <span>Produtos Mais Vendidos</span>

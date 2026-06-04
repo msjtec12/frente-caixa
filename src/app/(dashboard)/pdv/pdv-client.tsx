@@ -217,7 +217,7 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
   }
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row gap-4 h-[calc(100vh-6rem)]">
+    <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:h-[calc(100vh-6rem)]">
       {/* Esquerda: Busca e Produtos (65%) */}
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
         
@@ -311,7 +311,7 @@ export function PDVClient({ products, customers, cashRegister, categories }: { p
       </div>
 
       {/* Direita: Carrinho Fixo (35%) */}
-      <Card className="w-full lg:w-[400px] xl:w-[450px] flex flex-col h-full shadow-lg border-0 lg:border">
+      <Card className="w-full lg:w-[400px] xl:w-[450px] flex flex-col h-[500px] lg:h-full shadow-lg border-0 lg:border shrink-0 mt-4 lg:mt-0">
         <CardHeader className="py-4 border-b bg-zinc-50 dark:bg-zinc-900 rounded-t-lg">
           <CardTitle className="flex justify-between items-center text-lg">
             <div className="flex items-center"><ShoppingCart className="mr-2 h-5 w-5 text-primary" /> Pedido Atual</div>

@@ -30,7 +30,7 @@ export function Sidebar({ role = "CASHIER" }: { role?: string }) {
   });
 
   return (
-    <div className="h-full border-r bg-zinc-50 dark:bg-zinc-950 flex flex-col w-64 fixed left-0 top-0">
+    <div className="hidden md:flex h-full border-r bg-zinc-50 dark:bg-zinc-950 flex-col w-64 fixed left-0 top-0 z-20">
       <div className="h-16 flex items-center px-6 border-b">
         <Store className="h-6 w-6 text-primary mr-2" />
         <h1 className="font-bold text-xl tracking-tight">Konnexy PDV</h1>
