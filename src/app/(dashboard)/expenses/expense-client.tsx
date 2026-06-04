@@ -62,10 +62,10 @@ export function ExpenseClient({ initialExpenses }: { initialExpenses: any[] }) {
             R$ {totalExpenses.toFixed(2)}
           </h3>
         </div>
+        <Button onClick={() => setIsOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Nova Despesa
+        </Button>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Nova Despesa</Button>
-          </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Registrar Despesa</DialogTitle>
