@@ -10,7 +10,16 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
+  const role = (session?.user as any)?.role;
+
   if (!companyId) return <div>Sem permissão</div>;
+  if (role === "CASHIER") {
+    return <div className="p-10 text-center flex flex-col items-center justify-center">
+      <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
+      <h2 className="text-2xl font-bold">Acesso Restrito</h2>
+      <p className="text-zinc-500 mt-2">Você não tem permissão para visualizar o Dashboard.</p>
+    </div>;
+  }
 
   // Configurando datas (Hoje e Ontem para comparação)
   const todayStart = new Date();

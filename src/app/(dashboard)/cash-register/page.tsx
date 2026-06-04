@@ -11,8 +11,15 @@ export const dynamic = "force-dynamic";
 export default async function CashRegisterPage() {
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as any)?.companyId;
+  const role = (session?.user as any)?.role;
   
   if (!companyId) return <div>Acesso negado.</div>;
+  if (role === "CASHIER") {
+    return <div className="p-10 text-center flex flex-col items-center justify-center">
+      <h2 className="text-2xl font-bold text-red-600">Acesso Restrito</h2>
+      <p className="text-zinc-500 mt-2">Você não tem permissão para gerenciar os caixas.</p>
+    </div>;
+  }
 
   const registers = await prisma.cashRegister.findMany({
     where: { companyId },

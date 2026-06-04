@@ -17,8 +17,17 @@ const routes = [
   { label: "Configurações", icon: Settings, href: "/settings" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ role = "CASHIER" }: { role?: string }) {
   const pathname = usePathname();
+
+  const filteredRoutes = routes.filter(route => {
+    // Se for Caixa (CASHIER), só vê PDV
+    if (role === "CASHIER") {
+      return route.href === "/pdv";
+    }
+    // ADMIN ou MANAGER vê tudo
+    return true;
+  });
 
   return (
     <div className="h-full border-r bg-zinc-50 dark:bg-zinc-950 flex flex-col w-64 fixed left-0 top-0">
@@ -27,7 +36,7 @@ export function Sidebar() {
         <h1 className="font-bold text-xl tracking-tight">Konnexy PDV</h1>
       </div>
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-3">
-        {routes.map((route) => (
+        {filteredRoutes.map((route) => (
           <Link
             key={route.href}
             href={route.href}
