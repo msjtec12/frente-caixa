@@ -11,7 +11,12 @@ export async function getProducts() {
 }
 
 export async function createProduct(data: any) {
-  const product = await prisma.product.create({ data });
+  const company = await prisma.company.findFirst();
+  if (!company) throw new Error("Empresa não encontrada");
+  
+  const product = await prisma.product.create({
+    data: { ...data, companyId: company.id }
+  });
   revalidatePath("/products");
   return product;
 }
