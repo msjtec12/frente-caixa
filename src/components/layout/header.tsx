@@ -55,6 +55,7 @@ export function Header() {
                   <Link
                     key={route.href}
                     href={route.href}
+                    onClick={() => setIsOpen(false)}
                     className={cn(
                       "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-primary hover:bg-primary/10 rounded-lg transition",
                       pathname === route.href || pathname.startsWith(route.href + '/') ? "text-primary bg-primary/10" : "text-zinc-600 dark:text-zinc-400"
