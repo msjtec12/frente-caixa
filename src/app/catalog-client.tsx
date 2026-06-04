@@ -90,18 +90,17 @@ export function CatalogClient({ products, categories }: { products: any[], categ
               Área do Lojista
             </Link>
             
+            <Button onClick={() => setIsCartOpen(true)} className="relative bg-primary text-primary-foreground hover:bg-primary/90">
+              <ShoppingCart className="h-5 w-5 mr-2" />
+              Carrinho
+              {totalItems > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {totalItems}
+                </span>
+              )}
+            </Button>
+            
             <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
-              <SheetTrigger asChild>
-                <Button className="relative bg-primary text-primary-foreground hover:bg-primary/90">
-                  <ShoppingCart className="h-5 w-5 mr-2" />
-                  Carrinho
-                  {totalItems > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                      {totalItems}
-                    </span>
-                  )}
-                </Button>
-              </SheetTrigger>
               <SheetContent className="w-full sm:max-w-md flex flex-col">
                 <SheetHeader>
                   <SheetTitle>Seu Pedido</SheetTitle>
